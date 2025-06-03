@@ -1,21 +1,20 @@
-[project]
+[tool.poetry]
 name = "discordbot"
 version = "0.1.0"
 description = ""
-authors = [
-    {name = "Your Name",email = "you@example.com"}
-]
+authors = ["Your Name <you@example.com>"]
 readme = "README.md"
-requires-python = ">=3.11"
-dependencies = [
-    "discord (>=2.3.2,<3.0.0)",
-    "dotenv (>=0.9.9,<0.10.0)",
-    "requests (>=2.32.3,<3.0.0)",
-    "pandas (>=2.2.3,<3.0.0)",
-    "xmltodict (>=0.14.2,<0.15.0)"
-]
+packages = [{ include = "discordbot" }]
+# 위 packages는 실제 src 디렉토리나 모듈 구조에 따라 조정 가능
 
+[tool.poetry.dependencies]
+python = "^3.11"
+discord = ">=2.3.2,<3.0.0"
+dotenv = ">=0.9.9,<0.10.0"
+requests = ">=2.32.3,<3.0.0"
+pandas = ">=2.2.3,<3.0.0"
+xmltodict = ">=0.14.2,<0.15.0"
 
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
+requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"

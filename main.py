@@ -304,7 +304,7 @@ async def check_github_daily_scrum():
     try:
         now = datetime.datetime.now()
         if now.weekday() < 5 and now.hour == 9 and now.minute == 5 and not IS_HOLIDAY:
-            print(1)
+            return
         issues = await fetch_github_project_issues()
 
         sub_issues = await get_daily_scrum_sub_issues(

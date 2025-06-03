@@ -1,11 +1,20 @@
 import discord
-import asyncio
+from typing import Dict, List, Any
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import os
 import datetime
 from holiday import is_holiday
 import logging
+import json
+from tracking import (
+    fetch_github_project_issues,
+    is_target_issue,
+    check_issue_created_by_users,
+    get_daily_scrum_sub_issues,
+    get_today_date_str,
+)
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -19,6 +28,7 @@ bot_token = os.getenv("BOT_TOKEN")
 bot = commands.Bot(command_prefix="!", intents=discord.Intents.all(), help_command=None)
 
 IS_HOLIDAY = None
+USER_MAP = json.loads(os.getenv("USER_MAP", "{}"))
 
 
 @bot.command()
@@ -92,6 +102,12 @@ async def on_ready():
         alarm.start()
     if not refresh_holiday.is_running():
         refresh_holiday.start()
+    if not check_github_weekly_plan.is_running():
+        check_github_weekly_plan.start()
+    if not check_github_weekly_retrospect.is_running():
+        check_github_weekly_retrospect.start()
+    if not check_github_daily_scrum.is_running():
+        check_github_daily_scrum.start()
 
 
 @tasks.loop(hours=24)
@@ -103,18 +119,8 @@ async def refresh_holiday():
 @tasks.loop(seconds=10)
 async def alarm():
     now = datetime.datetime.now()
-    logging.info(
-        f"{now.weekday() < 5 and now.hour >= 18 and now.minute >= 1 and IS_HOLIDAY}"
-    )
-    if (
-        now.weekday() < 5
-        and now.hour == 9
-        and now.minute >= 0
-        and now.minute <= 10
-        and not IS_HOLIDAY
-        or True
-    ):
-        description_text = "스크럼을 `09:10` 까지 작성해주세요!"
+    if now.weekday() < 5 and now.hour == 9 and now.minute == 5 and not IS_HOLIDAY:
+        description_text = "스크럼을 `09:10` 까지 작성해주세요!. \n\n Status : `Daily-Scrum` \n Title : `XX.XX.XX 이름` 형식으로 작성해주세요! \n `assignee` 할당해주세요!"
         link_text = f"스크럼 작성하러 가기:{os.getenv('DAILY_SCRUM')}"
         link_label, url = link_text.split(":", 1)
 
@@ -131,15 +137,8 @@ async def alarm():
                 if channel:
                     logging.info(f"전송 중...")
                     await channel.send(content="@everyone", embed=embed)
-    if (
-        now.weekday() == 3
-        and now.hour >= 10
-        and now.hour <= 17
-        and now.minute == 0
-        and not IS_HOLIDAY
-        or True
-    ):
-        description_text = "계획 문서를 `13:30` 까지 작성해주세요!"
+    if now.weekday() == 3 and now.hour == 10 and now.minute == 0 and not IS_HOLIDAY:
+        description_text = "계획 문서를 `13:30` 까지 작성해주세요! \n\n Status : `Weekly-Planning` \n Title : `XX.XX.XX 이름` 형식으로 작성해주세요! \n `assignee` 할당해주세요!"
         link_text = f"계획 작성하러 가기:{os.getenv('WEEK_PLANNING')}"
         link_label, url = link_text.split(":", 1)
 
@@ -156,15 +155,8 @@ async def alarm():
                 if channel:
                     logging.info(f"전송 중...")
                     await channel.send(content="@everyone", embed=embed)
-    if (
-        now.weekday() == 0
-        and now.hour >= 10
-        and now.hour <= 2
-        and now.minute == 0
-        and not IS_HOLIDAY
-        or True
-    ):
-        description_text = "회고 문서를 `16:30` 까지 작성해주세요!"
+    if now.weekday() == 0 and now.hour == 10 and now.minute == 0 and not IS_HOLIDAY:
+        description_text = "계획 문서를 작성해주세요! \n\n Status : `Weekly-Planning`, \n Title : `XX.XX.XX 이름` 형식으로 작성해주세요! \n `assignee` 할당해주세요!"
         link_text = f"회고 작성하러 가기:{os.getenv('WEEK_RETROSPECT')}"
         link_label, url = link_text.split(":", 1)
 
@@ -217,6 +209,139 @@ async def 도움말(ctx):
     )
 
     await ctx.send(embed=embed)
+
+
+def get_unsubmitted_user_ids(
+    result: Dict[str, bool], user_map: Dict[str, str]
+) -> List[str]:
+    ids = []
+    for user, created in result.items():
+        if not created:
+            mention = user_map.get(user, "")
+            ids.append(mention)
+    return ids
+
+
+@tasks.loop(hours=1)
+async def check_github_weekly_plan():
+    try:
+        now = datetime.datetime.now()
+        if not (
+            now.weekday() == 0
+            and now.hour >= 10
+            and now.hour <= 2
+            and now.minute == 0
+            and not IS_HOLIDAY
+        ):
+            return
+        issues = await fetch_github_project_issues()
+        target_issues = [
+            item for item in issues if is_target_issue(item, "Weekly-Planning")
+        ]
+        logging.info(get_daily_scrum_sub_issues(target_issues))
+        logger.info(f"[주간 계획] 대상 이슈 수: {len(target_issues)}")
+        result = check_issue_created_by_users(target_issues, USER_MAP)
+        mentions = get_unsubmitted_user_ids(result, USER_MAP)
+        description_text = "계획 문서를 작성해주세요! \n\n Status : `Weekly-Planning`, \n Title : `XX.XX.XX 이름` 형식으로 작성해주세요! \n `assignee` 할당해주세요!"
+        link_text = f"계획 작성하러 가기:{os.getenv('WEEK_PLANNING')}"
+        link_label, url = link_text.split(":", 1)
+        for mention in mentions:
+            embed = discord.Embed(
+                title="📢 주간 계획 미작성 알림",
+                description=(f"{description_text}\n\n" f"🔗 [{link_label}]({url})"),
+                color=discord.Color.red(),
+            )
+            for guild_id, channels in channel_map.items():
+                channel_id = channels.get("alarm")
+                if channel_id:
+                    channel = bot.get_channel(channel_id)
+                    if channel:
+                        await channel.send(content=f"<@{mention}>", embed=embed)
+    except Exception:
+        logger.exception("check_github_weekly_plan 실행 중 오류 발생")
+
+
+@tasks.loop(hours=1)
+async def check_github_weekly_retrospect():
+    try:
+        now = datetime.datetime.now()
+        if not (
+            now.weekday() == 3
+            and now.hour >= 10
+            and now.hour <= 17
+            and now.minute == 0
+            and not IS_HOLIDAY
+        ):
+            return
+        issues = await fetch_github_project_issues()
+        target_issues = [
+            item for item in issues if is_target_issue(item, "Weekly-Retrospect")
+        ]
+        logger.info(f"[주간 회고] 대상 이슈 수: {len(target_issues)}")
+        result = check_issue_created_by_users(target_issues, USER_MAP)
+        mentions = get_unsubmitted_user_ids(result, USER_MAP)
+        description_text = "회고 문서를 작성해주세요! \n\n Status : `Weekly-Restrospect`, \n Title : `XX.XX.XX 이름` 형식으로 작성해주세요! \n `assignee` 할당해주세요!"
+        link_text = f"회고 작성하러 가기:{os.getenv('WEEK_RETROSPECT')}"
+        link_label, url = link_text.split(":", 1)
+        for mention in mentions:
+            embed = discord.Embed(
+                title="📢 주간 회고 미작성 알림",
+                description=(f"{description_text}\n\n" f"🔗 [{link_label}]({url})"),
+                color=discord.Color.red(),
+            )
+            for guild_id, channels in channel_map.items():
+                channel_id = channels.get("alarm")
+                if channel_id:
+                    channel = bot.get_channel(channel_id)
+                    if channel:
+                        await channel.send(content=f"<@{mention}>", embed=embed)
+    except Exception:
+        logger.exception("check_github_weekly_retrospect 실행 중 오류 발생")
+
+
+@tasks.loop(minutes=5)
+async def check_github_daily_scrum():
+    try:
+        now = datetime.datetime.now()
+        if now.weekday() < 5 and now.hour == 9 and now.minute == 5 and not IS_HOLIDAY:
+            print(1)
+        issues = await fetch_github_project_issues()
+
+        sub_issues = await get_daily_scrum_sub_issues(
+            issues,
+            get_today_date_str(),
+        )
+        logging.info(sub_issues)
+
+        # 서브이슈 작성자 추출
+        submitted_users = set()
+        for sub_issue in sub_issues:
+            for assignee in sub_issue.get("assignees", []):
+                if "login" in assignee:
+                    submitted_users.add(assignee["login"].lower())
+
+        # 미작성자 확인
+        result = {user: user.lower() in submitted_users for user in USER_MAP}
+        logging.info(f"{result}")
+
+        mentions = get_unsubmitted_user_ids(result, USER_MAP)
+        description_text = "스크럼 문서를 작성해주세요! \n\n 오늘 날짜 밑의 `sub-issue`를 작성해주세요! \n Title : `XX.XX.XX 이름` 형식으로 작성해주세요! \n `assignee` 할당해주세요!"
+        link_text = f"스크럼 작성하러 가기:{os.getenv('DAILY_SCRUM')}"
+        link_label, url = link_text.split(":", 1)
+        for mention in mentions:
+            embed = discord.Embed(
+                title="📢 데일리 스크럼 미작성 알림",
+                description=(f"{description_text}\n\n" f"🔗 [{link_label}]({url})"),
+                color=discord.Color.red(),
+            )
+            for guild_id, channels in channel_map.items():
+                channel_id = channels.get("alarm")
+                if channel_id:
+                    channel = bot.get_channel(channel_id)
+                    if channel:
+                        await channel.send(content=f"<@{mention}>", embed=embed)
+    except Exception:
+        logger.exception("check_github_weekly_retrospect 실행 중 오류 발생")
 
 
 bot.run(bot_token)

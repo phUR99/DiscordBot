@@ -1,6 +1,8 @@
 import discord
-from typing import Dict, List, Any
+from typing import Dict, List
+from flask import Flask
 from discord.ext import commands, tasks
+from threading import Thread
 from dotenv import load_dotenv
 import os
 import datetime
@@ -346,4 +348,20 @@ async def check_github_daily_scrum():
         logger.exception("check_github_weekly_retrospect 실행 중 오류 발생")
 
 
+@app.route("/")
+def home():
+    return "✅ 디스코드 봇 실행 중"
+
+
+def run():
+    app.run(host="0.0.0.0", port=8080)
+
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+
+
 bot.run(bot_token)
+# 간단한 웹서버 생성 (슬립 방지용)
+app = Flask("")

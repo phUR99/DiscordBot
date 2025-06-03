@@ -1,4 +1,4 @@
-[project]
+[tool.poetry]
 name = "discordbot"
 version = "0.1.0"
 description = ""

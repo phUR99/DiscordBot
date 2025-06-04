@@ -117,10 +117,12 @@ async def refresh_holiday():
     IS_HOLIDAY = is_holiday()
 
 
-@tasks.loop(seconds=10)
+@tasks.loop(minutes=1)
 async def alarm():
     now = datetime.datetime.now()
+    current_time = now.strftime("%Y-%m-%d %H:%M:%S")
     if now.weekday() < 5 and now.hour == 9 and now.minute == 5 and not IS_HOLIDAY:
+        logger.info(f"[{current_time}] 데일리 스크럼 알림 시작")
         description_text = "스크럼을 `09:10` 까지 작성해주세요!. \n\n Status : `Daily-Scrum` \n Title : `XX.XX.XX 이름` 형식으로 작성해주세요! \n `assignee` 할당해주세요!"
         link_text = f"스크럼 작성하러 가기:{os.getenv('DAILY_SCRUM')}"
         link_label, url = link_text.split(":", 1)
@@ -134,11 +136,16 @@ async def alarm():
             alarm_id = channels.get("alarm")
             if alarm_id:
                 channel = bot.get_channel(alarm_id)
-                logging.info(f"채널 확인...")
+                logger.info(
+                    f"[{current_time}] 채널 {channel.name if channel else 'None'} 확인 중..."
+                )
                 if channel:
-                    logging.info(f"전송 중...")
+                    logger.info(f"[{current_time}] 데일리 스크럼 알림 전송 중...")
                     await channel.send(content="@everyone", embed=embed)
+                    logger.info(f"[{current_time}] 데일리 스크럼 알림 전송 완료")
+
     if now.weekday() == 3 and now.hour == 10 and now.minute == 0 and not IS_HOLIDAY:
+        logger.info(f"[{current_time}] 주간 계획 알림 시작")
         description_text = "계획 문서를 `13:30` 까지 작성해주세요! \n\n Status : `Weekly-Planning` \n Title : `XX.XX.XX 이름` 형식으로 작성해주세요! \n `assignee` 할당해주세요!"
         link_text = f"계획 작성하러 가기:{os.getenv('WEEK_PLANNING')}"
         link_label, url = link_text.split(":", 1)
@@ -152,11 +159,16 @@ async def alarm():
             alarm_id = channels.get("alarm")
             if alarm_id:
                 channel = bot.get_channel(alarm_id)
-                logging.info(f"채널 확인...")
+                logger.info(
+                    f"[{current_time}] 채널 {channel.name if channel else 'None'} 확인 중..."
+                )
                 if channel:
-                    logging.info(f"전송 중...")
+                    logger.info(f"[{current_time}] 주간 계획 알림 전송 중...")
                     await channel.send(content="@everyone", embed=embed)
+                    logger.info(f"[{current_time}] 주간 계획 알림 전송 완료")
+
     if now.weekday() == 0 and now.hour == 10 and now.minute == 0 and not IS_HOLIDAY:
+        logger.info(f"[{current_time}] 주간 회고 알림 시작")
         description_text = "계획 문서를 작성해주세요! \n\n Status : `Weekly-Planning`, \n Title : `XX.XX.XX 이름` 형식으로 작성해주세요! \n `assignee` 할당해주세요!"
         link_text = f"회고 작성하러 가기:{os.getenv('WEEK_RETROSPECT')}"
         link_label, url = link_text.split(":", 1)
@@ -171,10 +183,13 @@ async def alarm():
             alarm_id = channels.get("alarm")
             if alarm_id:
                 channel = bot.get_channel(alarm_id)
-                logging.info(f"채널 확인...")
+                logger.info(
+                    f"[{current_time}] 채널 {channel.name if channel else 'None'} 확인 중..."
+                )
                 if channel:
-                    logging.info(f"전송 중...")
+                    logger.info(f"[{current_time}] 주간 회고 알림 전송 중...")
                     await channel.send(content="@everyone", embed=embed)
+                    logger.info(f"[{current_time}] 주간 회고 알림 전송 완료")
 
 
 @bot.command(name="도움말", aliases=["help"])
@@ -227,22 +242,24 @@ def get_unsubmitted_user_ids(
 async def check_github_weekly_plan():
     try:
         now = datetime.datetime.now()
+        current_time = now.strftime("%Y-%m-%d %H:%M:%S")
         if not (
             now.weekday() == 0
             and now.hour >= 10
-            and now.hour <= 2
+            and now.hour <= 17
             and now.minute == 0
             and not IS_HOLIDAY
         ):
             return
+        logger.info(f"[{current_time}] 주간 계획 체크 시작")
         issues = await fetch_github_project_issues()
         target_issues = [
             item for item in issues if is_target_issue(item, "Weekly-Planning")
         ]
-        logging.info(get_daily_scrum_sub_issues(target_issues))
-        logger.info(f"[주간 계획] 대상 이슈 수: {len(target_issues)}")
+        logger.info(f"[{current_time}] [주간 계획] 대상 이슈 수: {len(target_issues)}")
         result = check_issue_created_by_users(target_issues, USER_MAP)
         mentions = get_unsubmitted_user_ids(result, USER_MAP)
+        logger.info(f"[{current_time}] [주간 계획] 미작성자 수: {len(mentions)}")
         description_text = "계획 문서를 작성해주세요! \n\n Status : `Weekly-Planning`, \n Title : `XX.XX.XX 이름` 형식으로 작성해주세요! \n `assignee` 할당해주세요!"
         link_text = f"계획 작성하러 가기:{os.getenv('WEEK_PLANNING')}"
         link_label, url = link_text.split(":", 1)
@@ -266,21 +283,25 @@ async def check_github_weekly_plan():
 async def check_github_weekly_retrospect():
     try:
         now = datetime.datetime.now()
+        current_time = now.strftime("%Y-%m-%d %H:%M:%S")
         if not (
             now.weekday() == 3
             and now.hour >= 10
             and now.hour <= 17
             and now.minute == 0
+            and now.second < 10
             and not IS_HOLIDAY
         ):
             return
+        logger.info(f"[{current_time}] 주간 회고 체크 시작")
         issues = await fetch_github_project_issues()
         target_issues = [
             item for item in issues if is_target_issue(item, "Weekly-Retrospect")
         ]
-        logger.info(f"[주간 회고] 대상 이슈 수: {len(target_issues)}")
+        logger.info(f"[{current_time}] [주간 회고] 대상 이슈 수: {len(target_issues)}")
         result = check_issue_created_by_users(target_issues, USER_MAP)
         mentions = get_unsubmitted_user_ids(result, USER_MAP)
+        logger.info(f"[{current_time}] [주간 회고] 미작성자 수: {len(mentions)}")
         description_text = "회고 문서를 작성해주세요! \n\n Status : `Weekly-Restrospect`, \n Title : `XX.XX.XX 이름` 형식으로 작성해주세요! \n `assignee` 할당해주세요!"
         link_text = f"회고 작성하러 가기:{os.getenv('WEEK_RETROSPECT')}"
         link_label, url = link_text.split(":", 1)
@@ -304,17 +325,22 @@ async def check_github_weekly_retrospect():
 async def check_github_daily_scrum():
     try:
         now = datetime.datetime.now()
+        current_time = now.strftime("%Y-%m-%d %H:%M:%S")
         if not (
-            now.weekday() < 5 and now.hour == 9 and now.minute < 30 and not IS_HOLIDAY
+            now.weekday() < 5
+            and now.hour == 9
+            and now.minute >= 10
+            and now.minute < 30
+            and not IS_HOLIDAY
         ):
             return
+        logger.info(f"[{current_time}] 데일리 스크럼 체크 시작")
         issues = await fetch_github_project_issues()
-
         sub_issues = await get_daily_scrum_sub_issues(
             issues,
             get_today_date_str(),
         )
-        logging.info(sub_issues)
+        logger.info(f"[{current_time}] [데일리 스크럼] 서브이슈 수: {len(sub_issues)}")
 
         # 서브이슈 작성자 추출
         submitted_users = set()

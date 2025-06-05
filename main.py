@@ -144,9 +144,9 @@ async def alarm():
                     await channel.send(content="@everyone", embed=embed)
                     logger.info(f"[{current_time}] 데일리 스크럼 알림 전송 완료")
 
-    if now.weekday() == 3 and now.hour == 10 and now.minute == 0 and not IS_HOLIDAY:
+    if now.weekday() == 0 and now.hour == 10 and now.minute == 0 and not IS_HOLIDAY:
         logger.info(f"[{current_time}] 주간 계획 알림 시작")
-        description_text = "계획 문서를 `13:30` 까지 작성해주세요! \n\n Status : `Weekly-Planning` \n Title : `XX.XX.XX 이름` 형식으로 작성해주세요! \n `assignee` 할당해주세요!"
+        description_text = "계획 문서를 작성해주세요! \n\n Status : `Weekly-Planning` \n Title : `XX.XX.XX 이름` 형식으로 작성해주세요! \n `assignee` 할당해주세요!"
         link_text = f"계획 작성하러 가기:{os.getenv('WEEK_PLANNING')}"
         link_label, url = link_text.split(":", 1)
 
@@ -167,9 +167,9 @@ async def alarm():
                     await channel.send(content="@everyone", embed=embed)
                     logger.info(f"[{current_time}] 주간 계획 알림 전송 완료")
 
-    if now.weekday() == 0 and now.hour == 10 and now.minute == 0 and not IS_HOLIDAY:
-        logger.info(f"[{current_time}] 주간 회고 알림 시작")
-        description_text = "계획 문서를 작성해주세요! \n\n Status : `Weekly-Planning`, \n Title : `XX.XX.XX 이름` 형식으로 작성해주세요! \n `assignee` 할당해주세요!"
+    if now.weekday() == 3 and now.hour == 10 and now.minute == 0 and not IS_HOLIDAY:
+        logger.info(f"[{current_time}] 주간 회고 알림 시작")ß
+        description_text = "회고 문서를 작성해주세요! \n\n Status : `Weekly-Retrospect`, \n Title : `XX.XX.XX 이름` 형식으로 작성해주세요! \n `assignee` 할당해주세요!"
         link_text = f"회고 작성하러 가기:{os.getenv('WEEK_RETROSPECT')}"
         link_label, url = link_text.split(":", 1)
 
@@ -246,7 +246,7 @@ async def check_github_weekly_plan():
         if not (
             now.weekday() == 0
             and now.hour >= 10
-            and now.hour <= 17
+            and now.hour <= 13
             and now.minute == 0
             and not IS_HOLIDAY
         ):
@@ -287,9 +287,8 @@ async def check_github_weekly_retrospect():
         if not (
             now.weekday() == 3
             and now.hour >= 10
-            and now.hour <= 17
+            and now.hour <= 16
             and now.minute == 0
-            and now.second < 10
             and not IS_HOLIDAY
         ):
             return
@@ -321,7 +320,7 @@ async def check_github_weekly_retrospect():
         logger.exception("check_github_weekly_retrospect 실행 중 오류 발생")
 
 
-@tasks.loop(minutes=3)
+@tasks.loop(minutes=10)
 async def check_github_daily_scrum():
     try:
         now = datetime.datetime.now()

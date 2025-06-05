@@ -168,7 +168,7 @@ async def alarm():
                     logger.info(f"[{current_time}] 주간 계획 알림 전송 완료")
 
     if now.weekday() == 3 and now.hour == 10 and now.minute == 0 and not IS_HOLIDAY:
-        logger.info(f"[{current_time}] 주간 회고 알림 시작")ß
+        logger.info(f"[{current_time}] 주간 회고 알림 시작")
         description_text = "회고 문서를 작성해주세요! \n\n Status : `Weekly-Retrospect`, \n Title : `XX.XX.XX 이름` 형식으로 작성해주세요! \n `assignee` 할당해주세요!"
         link_text = f"회고 작성하러 가기:{os.getenv('WEEK_RETROSPECT')}"
         link_label, url = link_text.split(":", 1)
